@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Http\Controllers\PaymentProviders;
 
+use App\Constants\LemonSqueezyConstants;
 use App\Constants\OrderStatus;
 use App\Constants\PaymentProviderConstants;
 use App\Constants\SubscriptionStatus;
@@ -56,6 +57,11 @@ class LemonSqueezyControllerTest extends FeatureTest
         $this->assertDatabaseHas('subscriptions', [
             'uuid' => $uuid,
             'status' => SubscriptionStatus::ACTIVE->value,
+        ]);
+
+        $subscriptionFromDb = Subscription::where('uuid', $uuid)->firstOrFail();
+        $this->assertEquals($subscriptionFromDb->extra_payment_provider_data, [
+            'subscription_item_id' => 257408,
         ]);
     }
 
@@ -128,6 +134,11 @@ class LemonSqueezyControllerTest extends FeatureTest
         $this->assertDatabaseHas('subscriptions', [
             'uuid' => $uuid,
             'status' => SubscriptionStatus::INACTIVE->value,
+        ]);
+
+        $subscriptionFromDb = Subscription::where('uuid', $uuid)->firstOrFail();
+        $this->assertEquals($subscriptionFromDb->extra_payment_provider_data, [
+            'subscription_item_id' => 257408,
         ]);
     }
 
@@ -347,7 +358,6 @@ class LemonSqueezyControllerTest extends FeatureTest
             'status' => TransactionStatus::REFUNDED->value,
         ]);
     }
-
 
     private function generateSignature(string $content)
     {

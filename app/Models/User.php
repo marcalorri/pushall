@@ -10,6 +10,7 @@ use Filament\Panel;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -152,10 +153,10 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
 
     public function sendEmailVerificationNotification()
     {
-        $this->notify(new QueuedVerifyEmail());
+        $this->notify(new QueuedVerifyEmail);
     }
 
-    public function address()
+    public function address(): HasOne
     {
         return $this->hasOne(Address::class);
     }

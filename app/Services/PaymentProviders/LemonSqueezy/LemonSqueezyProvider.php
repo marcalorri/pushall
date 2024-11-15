@@ -4,7 +4,9 @@ namespace App\Services\PaymentProviders\LemonSqueezy;
 
 use App\Client\LemonSqueezyClient;
 use App\Constants\DiscountConstants;
+use App\Constants\LemonSqueezyConstants;
 use App\Constants\PaymentProviderConstants;
+use App\Constants\PlanType;
 use App\Models\Discount;
 use App\Models\Order;
 use App\Models\PaymentProvider;
@@ -30,9 +32,7 @@ class LemonSqueezyProvider implements PaymentProviderInterface
         private PlanManager $planManager,
         private DiscountManager $discountManager,
         private OneTimeProductManager $oneTimeProductManager,
-    ) {
-
-    }
+    ) {}
 
     public function createSubscriptionCheckoutRedirectLink(Plan $plan, Subscription $subscription, ?Discount $discount = null): string
     {
@@ -114,6 +114,8 @@ class LemonSqueezyProvider implements PaymentProviderInterface
         /** @var User $user */
         $user = auth()->user();
 
+        $variantId = null;
+
         foreach ($order->items()->get() as $item) {
             $product = $item->oneTimeProduct()->firstOrFail();
             $variantId = $this->oneTimeProductManager->getPaymentProviderProductId($product, $paymentProvider);
@@ -152,6 +154,11 @@ class LemonSqueezyProvider implements PaymentProviderInterface
 
         if ($discount) {
             $object['checkout_data']['discount_code'] = $this->findOrCreateLemonSqueezyDiscount($discount, $paymentProvider);
+        }
+
+        if ($variantId === null) {
+            Log::error('Failed to find variant ID for product: (did you forget to add it to the product?) '.$product->id);
+            throw new \Exception('Failed to find variant ID for product');
         }
 
         $response = $this->client->createCheckout($object, $variantId);
@@ -363,5 +370,41 @@ class LemonSqueezyProvider implements PaymentProviderInterface
         }
 
         return $paymentProvider;
+    }
+
+    public function getSupportedPlanTypes(): array
+    {
+        return [
+            PlanType::FLAT_RATE->value,
+            PlanType::USAGE_BASED->value,
+        ];
+    }
+
+    public function reportUsage(Subscription $subscription, int $unitCount): bool
+    {
+        $paymentProvider = $this->assertProviderIsActive();
+
+        try {
+            $subscriptionItemId = $subscription->extra_payment_provider_data[LemonSqueezyConstants::SUBSCRIPTION_ITEM_ID] ?? null;
+
+            if ($subscriptionItemId === null) {
+                Log::error('Failed to find subscription item ID for subscription: '.$subscription->id);
+                throw new \Exception('Failed to find subscription item ID for subscription');
+            }
+
+            $response = $this->client->reportUsage($subscriptionItemId, $unitCount);
+
+            if (! $response->successful()) {
+                Log::error('Failed to report usage to lemon-squeezy for subscription: '.$subscription->id, $response->json());
+                throw new \Exception('Failed to report usage to lemon-squeezy for subscription: '.$subscription->id);
+            }
+
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+
+            return false;
+        }
+
+        return true;
     }
 }

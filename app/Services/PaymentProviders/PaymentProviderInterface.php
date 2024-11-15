@@ -34,4 +34,8 @@ interface PaymentProviderInterface
     public function getChangePaymentMethodLink(Subscription $subscription): string;
 
     public function addDiscountToSubscription(Subscription $subscription, Discount $discount): bool;
+
+    public function getSupportedPlanTypes(): array;
+
+    public function reportUsage(Subscription $subscription, int $unitCount): bool;
 }

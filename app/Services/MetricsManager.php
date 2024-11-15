@@ -109,6 +109,10 @@ class MetricsManager
 
     private function aggregateData(array $data, string $aggregate = 'average')
     {
+        $data = array_map(function ($item) {
+            return floatval($item);
+        }, $data);
+
         if ($aggregate === 'sum') {
             return array_sum($data);
         } elseif ($aggregate === 'last_value') {
@@ -233,7 +237,7 @@ class MetricsManager
             return;
         }
 
-        $metricData = new MetricData();
+        $metricData = new MetricData;
         $metricData->metric_id = $metric->id;
         $metricData->value = $value;
         $metricData->created_at = $date;
@@ -326,7 +330,7 @@ class MetricsManager
         $cases = [];
         foreach ($intervals as $interval) {
             $calculationDays = $intervalsInDays[$interval->name];
-            $cases[] = "WHEN interval_id = $interval->id THEN subscriptions.price * subscriptions.interval_count / ".$calculationDays.' * 30';
+            $cases[] = "WHEN interval_id = $interval->id THEN 1.0 * subscriptions.price * subscriptions.interval_count / ".$calculationDays.' * 30';
         }
 
         $results = DB::table('subscriptions')

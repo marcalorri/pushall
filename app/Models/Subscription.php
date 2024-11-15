@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Mpociot\Versionable\VersionableTrait;
 
 class Subscription extends Model
@@ -29,41 +31,55 @@ class Subscription extends Model
         'is_canceled_at_end_of_cycle',
         'cancellation_reason',
         'cancellation_additional_info',
+        'price_type',
+        'price_tiers',
+        'price_per_unit',
+        'extra_payment_provider_data',
     ];
 
-    public function user()
+    protected $casts = [
+        'price_tiers' => 'array',
+        'extra_payment_provider_data' => 'array',
+    ];
+
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    public function plan()
+    public function plan(): BelongsTo
     {
         return $this->belongsTo(Plan::class);
     }
 
-    public function currency()
+    public function currency(): BelongsTo
     {
         return $this->belongsTo(Currency::class);
     }
 
-    public function paymentProvider()
+    public function paymentProvider(): BelongsTo
     {
         return $this->belongsTo(PaymentProvider::class);
     }
 
-    public function interval()
+    public function interval(): BelongsTo
     {
         return $this->belongsTo(Interval::class);
     }
 
-    public function transactions()
+    public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);
     }
 
-    public function discounts()
+    public function discounts(): HasMany
     {
         return $this->hasMany(SubscriptionDiscount::class);
+    }
+
+    public function usages(): HasMany
+    {
+        return $this->hasMany(SubscriptionUsage::class);
     }
 
     public function getRouteKeyName(): string

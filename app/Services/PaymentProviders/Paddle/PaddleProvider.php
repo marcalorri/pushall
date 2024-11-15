@@ -6,6 +6,7 @@ use App\Client\PaddleClient;
 use App\Constants\DiscountConstants;
 use App\Constants\PaddleConstants;
 use App\Constants\PaymentProviderConstants;
+use App\Constants\PlanType;
 use App\Filament\Dashboard\Resources\SubscriptionResource\Pages\PaymentProviders\Paddle\PaddleUpdatePaymentDetails;
 use App\Models\Currency;
 use App\Models\Discount;
@@ -176,6 +177,9 @@ class PaddleProvider implements PaymentProviderInterface
         $results = [
             'productDetails' => [],
         ];
+
+        $currency = $order->currency()->firstOrFail();
+
         foreach ($order->items()->get() as $item) {
             $product = $item->oneTimeProduct()->firstOrFail();
             $paddleProductId = $this->oneTimeProductManager->getPaymentProviderProductId($product, $paymentProvider);
@@ -183,8 +187,6 @@ class PaddleProvider implements PaymentProviderInterface
             if ($paddleProductId === null) {
                 $paddleProductId = $this->createPaddleProductForOneTimeProduct($product, $paymentProvider);
             }
-
-            $currency = $order->currency()->firstOrFail();
 
             $oneTimeProductPrice = $this->calculationManager->getOneTimeProductPrice($product);
 
@@ -404,5 +406,17 @@ class PaddleProvider implements PaymentProviderInterface
         }
 
         return true;
+    }
+
+    public function getSupportedPlanTypes(): array
+    {
+        return [
+            PlanType::FLAT_RATE->value,
+        ];
+    }
+
+    public function reportUsage(Subscription $subscription, int $unitCount): bool
+    {
+        throw new \Exception('Padddle does not support usage based billing');
     }
 }

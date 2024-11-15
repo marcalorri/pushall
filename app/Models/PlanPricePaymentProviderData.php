@@ -13,5 +13,6 @@ class PlanPricePaymentProviderData extends Model
         'plan_price_id',
         'payment_provider_id',
         'payment_provider_price_id',
+        'type',
     ];
 }

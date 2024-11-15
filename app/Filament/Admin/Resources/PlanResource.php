@@ -2,6 +2,7 @@
 
 namespace App\Filament\Admin\Resources;
 
+use App\Constants\PlanType;
 use App\Models\Interval;
 use App\Models\Plan;
 use App\Models\Product;
@@ -11,6 +12,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 
 class PlanResource extends Resource
@@ -55,6 +57,36 @@ class PlanResource extends Resource
                         ->rules(['alpha_dash'])
                         ->unique(ignoreRecord: true)
                         ->disabledOn('edit'),
+                    Forms\Components\Radio::make('type')
+                        ->helperText(
+                            new HtmlString(
+                                __('Flat Rate: Fixed price per interval. Usage Based: Price per unit with optional tiers.').'<br><strong>'.__('Important').'</strong>: '.__('Usage-based pricing is not supported for Paddle.')
+                            )
+                        )
+                        ->options([
+                            PlanType::FLAT_RATE->value => __('Flat Rate'),
+                            PlanType::USAGE_BASED->value => __('Usage-based'),
+                        ])
+                        ->default(PlanType::FLAT_RATE->value)
+                        ->disabledOn('edit')
+                        ->live()
+                        ->required(),
+                    Forms\Components\Select::make('meter_id')
+                        ->relationship('meter', 'name')
+                        ->searchable()
+                        ->preload()
+                        ->createOptionForm([
+                            Forms\Components\TextInput::make('name')
+                                ->helperText(__('The name of the meter. Please use singular form, for example: "Token" instead of "Tokens".'))
+                                ->required()
+                                ->maxLength(255),
+                        ])
+                        ->visible(function (\Filament\Forms\Get $get) {
+                            return $get('type') === PlanType::USAGE_BASED->value;
+                        })
+                        ->required(function (\Filament\Forms\Get $get) {
+                            return $get('type') === PlanType::USAGE_BASED->value;
+                        }),
                     Forms\Components\Select::make('product_id')
                         // only products with is_default = false can be selected
                         ->relationship('product', 'name', modifyQueryUsing: fn (Builder $query) => $query->where('is_default', false))

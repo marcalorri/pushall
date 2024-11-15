@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PlanPrice extends Model
 {
@@ -13,13 +15,24 @@ class PlanPrice extends Model
         'plan_id',
         'price',
         'currency_id',
+        'price_per_unit',
+        'type',
+        'tiers',
+    ];
+
+    protected $casts = [
+        'tiers' => 'array',
     ];
 
     protected static function booted(): void
     {
         static::updating(function (PlanPrice $planPrice) {
             // delete plan_price_payment_provider_data when plan price is updated to recreate provider prices when plan price is updated
-            if ($planPrice->getOriginal('price') !== $planPrice->price) {
+            if ($planPrice->getOriginal('price') !== $planPrice->price ||
+                $planPrice->getOriginal('price_per_unit') !== $planPrice->price_per_unit ||
+                $planPrice->getOriginal('type') !== $planPrice->type ||
+                $planPrice->getOriginal('tiers') !== $planPrice->tiers
+            ) {
                 $planPrice->planPricePaymentProviderData()->delete();
             }
         });
@@ -31,17 +44,17 @@ class PlanPrice extends Model
     }
 
 
-    public function plan()
+    public function plan(): BelongsTo
     {
         return $this->belongsTo(Plan::class);
     }
 
-    public function currency()
+    public function currency(): BelongsTo
     {
         return $this->belongsTo(Currency::class);
     }
 
-    public function planPricePaymentProviderData()
+    public function planPricePaymentProviderData(): HasMany
     {
         return $this->hasMany(PlanPricePaymentProviderData::class);
     }

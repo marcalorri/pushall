@@ -13,4 +13,25 @@ class All extends \App\View\Components\Plans\All
     {
         return view('components.filament.plans.all', $this->calculateViewData());
     }
+
+    protected function calculateViewData()
+    {
+        $subscription = null;
+        if ($this->currentSubscriptionUuid !== null) {
+            $subscription = $this->subscriptionManager->findActiveByUserAndSubscriptionUuid(auth()->user()->id, $this->currentSubscriptionUuid);
+        }
+
+        if ($subscription === null) {
+            return [];
+        }
+
+        $plans = $this->planManager->getAllPlansWithPrices(
+            $this->products,
+            $subscription->plan->type,
+        );
+
+        $viewData['subscription'] = $subscription;
+
+        return $this->enrichViewData($viewData, $plans);
+    }
 }
