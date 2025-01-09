@@ -107,5 +107,15 @@ class ConfigConstants
 
         // Cookie Consent
         'cookie-consent.enabled',
+
+        // Two Factor Auth
+        'app.two_factor_auth_enabled',
+
+        // Subscription Trial
+        'app.trial_without_payment.enabled',
+        'app.trial_without_payment.first_reminder_days',
+        'app.trial_without_payment.second_reminder_days',
+        'app.trial_without_payment.first_reminder_enabled',
+        'app.trial_without_payment.second_reminder_enabled',
     ];
 }

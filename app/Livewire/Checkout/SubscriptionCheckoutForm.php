@@ -2,10 +2,13 @@
 
 namespace App\Livewire\Checkout;
 
+use App\Exceptions\LoginException;
 use App\Exceptions\NoPaymentProvidersAvailableException;
 use App\Exceptions\SubscriptionCreationNotAllowedException;
+use App\Services\CalculationManager;
 use App\Services\CheckoutManager;
 use App\Services\DiscountManager;
+use App\Services\LoginManager;
 use App\Services\PaymentProviders\PaymentManager;
 use App\Services\PlanManager;
 use App\Services\SessionManager;
@@ -16,12 +19,40 @@ use App\Validator\RegisterValidator;
 class SubscriptionCheckoutForm extends CheckoutForm
 {
     private PlanManager $planManager;
+
     private SessionManager $sessionManager;
 
-    public function boot(PlanManager $planManager, SessionManager $sessionManager)
-    {
+    private CalculationManager $calculationManager;
+
+    public function boot(
+        PlanManager $planManager,
+        SessionManager $sessionManager,
+        CalculationManager $calculationManager,
+    ) {
         $this->planManager = $planManager;
         $this->sessionManager = $sessionManager;
+        $this->calculationManager = $calculationManager;
+    }
+
+    public function render(PaymentManager $paymentManager)
+    {
+        $subscriptionCheckoutDto = $this->sessionManager->getSubscriptionCheckoutDto();
+        $planSlug = $subscriptionCheckoutDto->planSlug;
+
+        $plan = $this->planManager->getActivePlanBySlug($planSlug);
+
+        $totals = $this->calculationManager->calculatePlanTotals(
+            auth()->user(),
+            $planSlug,
+            $subscriptionCheckoutDto?->discountCode,
+        );
+
+        return view('livewire.checkout.subscription-checkout-form', [
+            'userExists' => $this->userExists($this->email),
+            'paymentProviders' => $this->getPaymentProviders($paymentManager),
+            'plan' => $plan,
+            'totals' => $totals,
+        ]);
     }
 
     public function checkout(
@@ -31,8 +62,13 @@ class SubscriptionCheckoutForm extends CheckoutForm
         PaymentManager $paymentManager,
         DiscountManager $discountManager,
         UserManager $userManager,
+        LoginManager $loginManager,
     ) {
-        parent::handleLoginOrRegistration($loginValidator, $registerValidator, $userManager);
+        try {
+            parent::handleLoginOrRegistration($loginValidator, $registerValidator, $userManager, $loginManager);
+        } catch (LoginException $exception) { // 2fa is enabled, user has to go through typical login flow to enter 2fa code
+            return redirect()->route('login');
+        }
 
         $subscriptionCheckoutDto = $this->sessionManager->getSubscriptionCheckoutDto();
         $planSlug = $subscriptionCheckoutDto->planSlug;
@@ -52,7 +88,6 @@ class SubscriptionCheckoutForm extends CheckoutForm
         $discount = null;
         if ($subscriptionCheckoutDto->discountCode !== null) {
             $discount = $discountManager->getActiveDiscountByCode($subscriptionCheckoutDto->discountCode);
-            $plan = $this->planManager->getActivePlanBySlug($planSlug);
 
             if (! $discountManager->isCodeRedeemableForPlan($subscriptionCheckoutDto->discountCode, $user, $plan)) {
                 // this is to handle the case when user adds discount code that has max redemption limit per customer,
@@ -111,7 +146,7 @@ class SubscriptionCheckoutForm extends CheckoutForm
                 'plan' => $plan->slug,
             ]);
 
-            throw new NoPaymentProvidersAvailableException('No payment providers available for plan' . $plan->slug);
+            throw new NoPaymentProvidersAvailableException('No payment providers available for plan'.$plan->slug);
         }
 
         if ($this->paymentProvider === null) {

@@ -25,9 +25,9 @@ class FeatureTest extends TestCase
         $this->withoutVite();
     }
 
-    protected function createUser()
+    protected function createUser(array $attributes = [])
     {
-        return User::factory()->create();
+        return User::factory()->create($attributes);
     }
 
     protected function createAdminUser()

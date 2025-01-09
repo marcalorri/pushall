@@ -183,11 +183,21 @@ return [
         'dark' => 'images/logo-dark.png',
     ],
 
-    'roadmap_enabled' => true,
+    'roadmap_enabled' => env('ROADMAP_ENABLED', true),
 
-    'recaptcha_enabled' => false,
+    'recaptcha_enabled' => env('RECAPTCHA_ENABLED', false),
 
-    'multiple_subscriptions_enabled' => false,
+    'multiple_subscriptions_enabled' => env('MULTIPLE_SUBSCRIPTIONS_ENABLED', false),
+
+    'two_factor_auth_enabled' => env('TWO_FACTOR_AUTH_ENABLED', true),
+
+    'trial_without_payment' => [
+        'enabled' => env('TRIAL_WITHOUT_PAYMENT_ENABLED', false),
+        'first_reminder_enabled' => env('TRIAL_WITHOUT_PAYMENT_FIRST_REMINDER_ENABLED', true),
+        'first_reminder_days' => env('TRIAL_WITHOUT_PAYMENT_FIRST_REMINDER_DAYS', 3),
+        'second_reminder_enabled' => env('TRIAL_WITHOUT_PAYMENT_SECOND_REMINDER_ENABLED', true),
+        'second_reminder_days' => env('TRIAL_WITHOUT_PAYMENT_SECOND_REMINDER_DAYS', 1),
+    ],
 
     /*
     |--------------------------------------------------------------------------
