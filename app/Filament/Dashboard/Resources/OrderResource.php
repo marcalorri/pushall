@@ -3,7 +3,6 @@
 namespace App\Filament\Dashboard\Resources;
 
 use App\Constants\DiscountConstants;
-use App\Constants\OrderStatus;
 use App\Filament\Dashboard\Resources\OrderResource\Pages;
 use App\Mapper\OrderStatusMapper;
 use App\Models\Order;
@@ -64,7 +63,8 @@ class OrderResource extends Resource
             ])
             ->bulkActions([
 
-            ])->defaultSort('updated_at', 'desc');
+            ])
+            ->defaultSort('updated_at', 'desc');
     }
 
     public static function infolist(Infolist $infolist): Infolist

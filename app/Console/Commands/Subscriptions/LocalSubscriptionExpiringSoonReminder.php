@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Commands\Subscriptions;
 
 use App\Mail\Subscription\LocalSubscriptionExpiringSoon;
 use App\Models\User;
@@ -15,6 +15,7 @@ class LocalSubscriptionExpiringSoonReminder extends Command
     ) {
         parent::__construct();
     }
+
     /**
      * The name and signature of the console command.
      *

@@ -22,14 +22,14 @@ class ConfigManagerTest extends FeatureTest
             'app.support_email' => 'test@test.com',
         ]);
 
-        $configManager = new ConfigManager();
+        $configManager = new ConfigManager;
 
         $configManager->loadConfigs();
     }
 
     public function test_set_not_allowed()
     {
-        $configManager = new ConfigManager();
+        $configManager = new ConfigManager;
 
         $this->expectException(\Exception::class);
 
@@ -38,7 +38,7 @@ class ConfigManagerTest extends FeatureTest
 
     public function test_set()
     {
-        $configManager = new ConfigManager();
+        $configManager = new ConfigManager;
 
         Cache::shouldReceive('forever')->once()->with('app.name', 'SaaSyKit');
 
@@ -49,12 +49,34 @@ class ConfigManagerTest extends FeatureTest
         $this->assertEquals('SaaSyKit', $configInDb->value);
     }
 
+    public function test_set_encrypted_config()
+    {
+        $configManager = new ConfigManager;
+
+        Cache::shouldReceive('forever')->once()->with('services.ses.secret', 'secret');
+
+        $configManager->set('services.ses.secret', 'secret');
+
+        $configInDb = \App\Models\Config::where('key', 'services.ses.secret')->first();
+
+        $this->assertEquals('secret', decrypt($configInDb->value));
+    }
+
     public function test_get()
     {
-        $configManager = new ConfigManager();
+        $configManager = new ConfigManager;
 
         $configManager->set('app.default_currency', 'EUR');
 
         $this->assertEquals('EUR', $configManager->get('app.default_currency'));
+    }
+
+    public function test_get_encrypted_config()
+    {
+        $configManager = new ConfigManager;
+
+        $configManager->set('services.ses.secret', 'secret');
+
+        $this->assertEquals('secret', $configManager->get('services.ses.secret'));
     }
 }

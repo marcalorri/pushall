@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::create('payment_providers', function (Blueprint $table) {
             $table->id();
             $table->timestamps();
-            $table->string('name');
             $table->string('type');
+            $table->string('name');
             $table->string('slug')->unique();
             $table->boolean('is_active')->default(true);
         });

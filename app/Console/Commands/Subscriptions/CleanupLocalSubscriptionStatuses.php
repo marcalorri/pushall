@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Commands\Subscriptions;
 
 use App\Services\SubscriptionManager;
 use Illuminate\Console\Command;
@@ -12,6 +12,7 @@ class CleanupLocalSubscriptionStatuses extends Command
     ) {
         parent::__construct();
     }
+
     /**
      * The name and signature of the console command.
      *

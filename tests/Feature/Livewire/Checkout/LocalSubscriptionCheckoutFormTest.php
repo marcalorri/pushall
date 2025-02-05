@@ -5,8 +5,10 @@ namespace Tests\Feature\Livewire\Checkout;
 use App\Constants\PlanPriceType;
 use App\Constants\PlanType;
 use App\Constants\SessionConstants;
+use App\Constants\SubscriptionStatus;
 use App\Constants\SubscriptionType;
 use App\Dto\SubscriptionCheckoutDto;
+use App\Events\Subscription\Subscribed;
 use App\Exceptions\CouldNotCreateLocalSubscriptionException;
 use App\Livewire\Checkout\LocalSubscriptionCheckoutForm;
 use App\Models\Currency;
@@ -15,6 +17,8 @@ use App\Models\Plan;
 use App\Models\PlanPrice;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Models\UserSubscriptionTrial;
+use Illuminate\Support\Facades\Event;
 use Livewire\Livewire;
 use Tests\Feature\FeatureTest;
 
@@ -48,6 +52,8 @@ class LocalSubscriptionCheckoutFormTest extends FeatureTest
         // get number of subscriptions before checkout
         $subscriptionsBefore = Subscription::count();
 
+        Event::fake();
+
         $email = 'something+'.rand(1, 1000000).'@gmail.com';
         Livewire::test(LocalSubscriptionCheckoutForm::class)
             ->set('name', 'Name')
@@ -67,6 +73,7 @@ class LocalSubscriptionCheckoutFormTest extends FeatureTest
         $this->assertEquals($subscriptionsBefore + 1, Subscription::count());
 
         $latestSubscription = Subscription::latest()->first();
+        Event::assertDispatched(Subscribed::class);
         $this->assertEquals($latestSubscription->type, SubscriptionType::LOCALLY_MANAGED);
     }
 
@@ -107,9 +114,11 @@ class LocalSubscriptionCheckoutFormTest extends FeatureTest
         // get number of subscriptions before checkout
         $subscriptionsBefore = Subscription::count();
 
+        Event::fake();
+
         Livewire::test(LocalSubscriptionCheckoutForm::class)
             ->set('name', 'Name')
-            ->set('email', 'existing+sub1@gmail.com')
+            ->set('email', $email)
             ->set('password', 'password')
             ->call('checkout')
             ->assertRedirect(route('checkout.subscription.success'));
@@ -120,6 +129,64 @@ class LocalSubscriptionCheckoutFormTest extends FeatureTest
         $this->assertEquals($subscriptionsBefore + 1, Subscription::count());
 
         $latestSubscription = Subscription::latest()->first();
+        Event::assertDispatched(Subscribed::class);
+        $this->assertEquals($latestSubscription->type, SubscriptionType::LOCALLY_MANAGED);
+    }
+
+    public function test_can_checkout_existing_user_redirect_to_verify_user_with_sms()
+    {
+        config(['app.trial_without_payment.enabled' => true]);
+        config(['app.trial_without_payment.sms_verification_enabled' => true]);
+
+        $sessionDto = new SubscriptionCheckoutDto;
+
+        $planSlug = 'plan-slug-'.rand(1, 1000000);
+
+        $sessionDto->planSlug = $planSlug;
+
+        $this->withSession([SessionConstants::SUBSCRIPTION_CHECKOUT_DTO => $sessionDto]);
+
+        $plan = Plan::factory()->create([
+            'slug' => $planSlug,
+            'is_active' => true,
+            'has_trial' => true,
+            'trial_interval_count' => 7,
+            'trial_interval_id' => Interval::where('slug', 'day')->first()->id,
+        ]);
+
+        PlanPrice::create([
+            'plan_id' => $plan->id,
+            'currency_id' => Currency::where('code', 'USD')->first()->id,
+            'price' => 100,
+        ]);
+
+        $email = 'existing+'.rand(1, 1000000).'@gmail.com';
+
+        $user = User::factory()->create([
+            'email' => $email,
+            'password' => bcrypt('password'),
+            'name' => 'Name',
+        ]);
+
+        // get number of subscriptions before checkout
+        $subscriptionsBefore = Subscription::count();
+
+        Event::fake();
+
+        Livewire::test(LocalSubscriptionCheckoutForm::class)
+            ->set('name', 'Name')
+            ->set('email', $email)
+            ->set('password', 'password')
+            ->call('checkout')
+            ->assertRedirect(route('user.phone-verify'));
+
+        // assert user is logged in
+        $this->assertAuthenticated();
+
+        $this->assertEquals($subscriptionsBefore + 1, Subscription::count());
+
+        $latestSubscription = Subscription::latest()->first();
+        Event::assertDispatched(Subscribed::class);
         $this->assertEquals($latestSubscription->type, SubscriptionType::LOCALLY_MANAGED);
     }
 
@@ -156,6 +223,66 @@ class LocalSubscriptionCheckoutFormTest extends FeatureTest
             ->call('checkout');
     }
 
+    public function test_can_not_checkout_when_user_can_have_no_trial()
+    {
+        config()->set('app.limit_user_trials.enabled', true);
+        config()->set('app.limit_user_trials.max_count', 1);
+
+        config(['app.trial_without_payment.enabled' => true]);
+
+        $planSlug = 'plan-slug-'.rand(1, 1000000);
+
+        $sessionDto = new SubscriptionCheckoutDto;
+        $sessionDto->planSlug = $planSlug;
+
+        $this->withSession([SessionConstants::SUBSCRIPTION_CHECKOUT_DTO => $sessionDto]);
+
+        $plan = Plan::factory()->create([
+            'slug' => $planSlug,
+            'is_active' => true,
+            'has_trial' => true,
+            'trial_interval_count' => 1,
+            'trial_interval_id' => Interval::where('slug', 'week')->first()->id,
+        ]);
+
+        PlanPrice::create([
+            'plan_id' => $plan->id,
+            'currency_id' => Currency::where('code', 'USD')->first()->id,
+            'price' => 100,
+        ]);
+
+        $email = 'existing+'.rand(1, 1000000).'@gmail.com';
+
+        $user = User::factory()->create([
+            'email' => $email,
+            'password' => bcrypt('password'),
+            'name' => 'Name',
+        ]);
+
+        $subscription = Subscription::factory()->create([
+            'user_id' => $user->id,
+            'status' => SubscriptionStatus::ACTIVE->value,
+            'plan_id' => $plan->id,
+            'ends_at' => now(),
+            'trial_ends_at' => now()->addDays(7),
+        ]);
+
+        UserSubscriptionTrial::factory()->create([
+            'user_id' => $user->id,
+            'subscription_id' => $subscription->id,
+            'trial_ends_at' => now()->addDays(7),
+        ]);
+
+        $this->actingAs($user);
+
+        Livewire::test(LocalSubscriptionCheckoutForm::class)
+            ->set('name', 'Name')
+            ->set('email', $email)
+            ->set('password', 'password')
+            ->call('checkout')
+            ->assertRedirect(route('home'));
+    }
+
     public function test_checkout_success_if_plan_type_is_usage_based()
     {
         config(['app.trial_without_payment.enabled' => true]);
@@ -187,6 +314,8 @@ class LocalSubscriptionCheckoutFormTest extends FeatureTest
         // get number of subscriptions before checkout
         $subscriptionsBefore = Subscription::count();
 
+        Event::fake();
+
         $email = 'something+'.rand(1, 1000000).'@gmail.com';
 
         Livewire::test(LocalSubscriptionCheckoutForm::class)
@@ -206,8 +335,12 @@ class LocalSubscriptionCheckoutFormTest extends FeatureTest
 
         $this->assertEquals($subscriptionsBefore + 1, Subscription::count());
 
-        $latestSubscription = Subscription::latest()->first();
-        $this->assertEquals($latestSubscription->type, SubscriptionType::LOCALLY_MANAGED);
+        // get session
+        $sessionDto = session(SessionConstants::SUBSCRIPTION_CHECKOUT_DTO);
+        $subscription = Subscription::find($sessionDto->subscriptionId);
+        Event::assertDispatched(Subscribed::class);
+
+        $this->assertEquals($subscription->type, SubscriptionType::LOCALLY_MANAGED);
     }
 
     public function test_can_not_checkout_if_trial_without_payment_is_disabled()

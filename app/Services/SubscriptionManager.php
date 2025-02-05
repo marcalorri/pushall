@@ -17,6 +17,7 @@ use App\Models\Plan;
 use App\Models\Product;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Models\UserSubscriptionTrial;
 use App\Services\PaymentProviders\PaymentProviderInterface;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -97,13 +98,31 @@ class SubscriptionManager
                     $subscriptionAttributes['trial_ends_at'] = $endDate;
                 }
 
-                $subscriptionAttributes['status'] = SubscriptionStatus::ACTIVE->value;
+                $user = User::find($userId);
+                if ($this->shouldUserVerifyPhoneNumberForTrial($user)) {
+                    $subscriptionAttributes['status'] = SubscriptionStatus::PENDING_USER_VERIFICATION->value;
+                } else {
+                    $subscriptionAttributes['status'] = SubscriptionStatus::ACTIVE->value;
+                }
             }
 
             $newSubscription = Subscription::create($subscriptionAttributes);
+
+            if ($localSubscription) {
+                // if it's a local subscription, dispatch Subscribed event.
+                // Payment provider subscriptions events are dispatched by payment provider strategy
+                Subscribed::dispatch($newSubscription);
+            }
+
+            $this->updateUserSubscriptionTrials($newSubscription->id);
         });
 
         return $newSubscription;
+    }
+
+    public function shouldUserVerifyPhoneNumberForTrial(User $user): bool
+    {
+        return config('app.trial_without_payment.sms_verification_enabled') && ! $user->isPhoneNumberVerified();
     }
 
     public function findAllSubscriptionsThatAreNotDead(int $userId): array
@@ -190,7 +209,11 @@ class SubscriptionManager
 
     public function shouldSkipTrial(Subscription $subscription)
     {
-        return $this->isLocalSubscription($subscription) && $subscription->plan->has_trial;
+        if ($this->isLocalSubscription($subscription) && $subscription->plan->has_trial) {
+            return true;
+        }
+
+        return ! $this->canUserHaveSubscriptionTrial($subscription->user);
     }
 
     public function findById(int $id): ?Subscription
@@ -214,6 +237,8 @@ class SubscriptionManager
         $oldEndsAt = $subscription->ends_at;
         $newEndsAt = $data['ends_at'] ?? $oldEndsAt;
         $subscription->update($data);
+
+        $this->updateUserSubscriptionTrials($subscription->id);
 
         $this->handleDispatchingEvents(
             $oldStatus,
@@ -485,11 +510,78 @@ class SubscriptionManager
 
     public function cleanupLocalSubscriptionStatuses()
     {
-        Subscription::where('type', SubscriptionType::LOCALLY_MANAGED)
+        $subscriptions = Subscription::where('type', SubscriptionType::LOCALLY_MANAGED)
             ->where('status', SubscriptionStatus::ACTIVE->value)
             ->where('ends_at', '<', now())
-            ->update([
+            ->get();
+
+        $subscriptions->each(function (Subscription $subscription) {
+            $this->updateSubscription($subscription, [
                 'status' => SubscriptionStatus::INACTIVE->value,
             ]);
+        });
+    }
+
+    public function updateUserSubscriptionTrials(int $subscriptionId)
+    {
+        $subscription = Subscription::where('id', $subscriptionId)
+            ->where('status', SubscriptionStatus::ACTIVE->value)
+            ->whereNotNull('trial_ends_at')
+            ->first();
+
+        if (! $subscription) {
+            return;
+        }
+
+        $user = $subscription->user;
+
+        // if user already has a trial for this subscription, do not create another one
+        $user->subscriptionTrials()
+            ->where('subscription_id', $subscription->id)
+            ->firstOrCreate([
+                'subscription_id' => $subscription->id,
+                'trial_ends_at' => $subscription->trial_ends_at,
+            ]);
+    }
+
+    public function getUserSubscriptionTrialCount(int $userId): int
+    {
+        return UserSubscriptionTrial::where('user_id', $userId)->count();
+    }
+
+    public function canUserHaveSubscriptionTrial(?User $user): bool
+    {
+        if (! $user) {
+            return true;
+        }
+
+        if (! config('app.limit_user_trials.enabled')) {
+            return true;
+        }
+
+        if ($this->getUserSubscriptionTrialCount($user->id) >= config('app.limit_user_trials.max_count')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public function activateSubscriptionsPendingUserVerification(User $user)
+    {
+        $subscriptions = Subscription::where('user_id', $user->id)
+            ->where('status', SubscriptionStatus::PENDING_USER_VERIFICATION->value)
+            ->get();
+
+        $subscriptions->each(function (Subscription $subscription) {
+            $this->updateSubscription($subscription, [
+                'status' => SubscriptionStatus::ACTIVE->value,
+            ]);
+        });
+    }
+
+    public function subscriptionRequiresUserVerification(Subscription $subscription): bool
+    {
+        return $subscription->status === SubscriptionStatus::PENDING_USER_VERIFICATION->value &&
+            $this->shouldUserVerifyPhoneNumberForTrial($subscription->user);
     }
 }

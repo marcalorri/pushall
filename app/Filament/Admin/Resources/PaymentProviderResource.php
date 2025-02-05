@@ -62,8 +62,7 @@ class PaymentProviderResource extends Resource
             ])
             ->bulkActions([
             ])
-            ->defaultSort('sort', 'asc')
-            ;
+            ->defaultSort('sort', 'asc');
     }
 
     public static function getRelations(): array
