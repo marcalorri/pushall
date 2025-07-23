@@ -370,6 +370,7 @@ class PaddleProvider implements PaymentProviderInterface
             $oneTimeProductPrice->price,
             $currency->code,
             $oneTimeProduct->name,
+            $oneTimeProduct->max_quantity,
         );
 
         if ($response->failed()) {

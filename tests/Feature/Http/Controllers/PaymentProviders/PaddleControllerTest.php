@@ -7,6 +7,7 @@ use App\Constants\SubscriptionStatus;
 use App\Constants\SubscriptionType;
 use App\Constants\TransactionStatus;
 use App\Models\Currency;
+use App\Models\OneTimeProduct;
 use App\Models\Order;
 use App\Models\PaymentProvider;
 use App\Models\Subscription;
@@ -158,13 +159,27 @@ class PaddleControllerTest extends FeatureTest
     {
         $user = $this->createUser();
         $currency = Currency::where('code', 'USD')->firstOrFail();
+
+        $oneTimeProduct = OneTimeProduct::factory()->create([
+            'slug' => 'product-slug-'.Str::random(5),
+            'is_active' => true,
+        ]);
+
         $orderUUID = (string) Str::uuid();
         $order = Order::create([
             'user_id' => $user->id,
             'uuid' => $orderUUID,
             'status' => 'new',
             'currency_id' => $currency->id,
-            'total_amount' => 100,
+            'total_amount' => 0,
+            'total_amount_after_discount' => 0,
+            'total_discount_amount' => 0,
+        ]);
+
+        $order->items()->create([
+            'one_time_product_id' => $oneTimeProduct->id,
+            'quantity' => 1,
+            'price_per_unit' => 0,
         ]);
 
         $txnId = Str::random();
@@ -184,6 +199,13 @@ class PaddleControllerTest extends FeatureTest
             'status' => TransactionStatus::PENDING->value,
             'payment_provider_transaction_id' => $txnId,
             'payment_provider_status' => 'billed',
+        ]);
+
+        $this->assertDatabaseHas('orders', [
+            'uuid' => $orderUUID,
+            'total_amount' => 924,
+            'total_amount_after_discount' => 824,
+            'total_discount_amount' => 100,
         ]);
     }
 
@@ -238,6 +260,12 @@ class PaddleControllerTest extends FeatureTest
     {
         $user = $this->createUser();
         $currency = Currency::where('code', 'USD')->firstOrFail();
+
+        $oneTimeProduct = OneTimeProduct::factory()->create([
+            'slug' => 'product-slug-'.Str::random(5),
+            'is_active' => true,
+        ]);
+
         $orderUUID = (string) Str::uuid();
         $order = Order::create([
             'user_id' => $user->id,
@@ -245,6 +273,12 @@ class PaddleControllerTest extends FeatureTest
             'status' => 'new',
             'currency_id' => $currency->id,
             'total_amount' => 100,
+        ]);
+
+        $order->items()->create([
+            'one_time_product_id' => $oneTimeProduct->id,
+            'quantity' => 1,
+            'price_per_unit' => 100,
         ]);
 
         $txnId = Str::random();
@@ -680,7 +714,7 @@ JSON;
                     "total": "1100",
                     "credit": "0",
                     "balance": "1100",
-                    "discount": "0",
+                    "discount": "100",
                     "earnings": null,
                     "subtotal": "924",
                     "grand_total": "1100",
