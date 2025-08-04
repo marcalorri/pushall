@@ -25,7 +25,6 @@ class LoginController extends Controller
     */
 
     use AuthenticatesUsers;
-
     use RedirectAwareTrait;
 
     public function __construct(

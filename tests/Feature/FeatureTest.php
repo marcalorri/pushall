@@ -21,6 +21,7 @@ class FeatureTest extends TestCase
             static::$setUpHasRunOnce = true;
         }
 
+        $this->configureDefaultCurrency();
         $this->withoutExceptionHandling();
         $this->withoutVite();
     }
@@ -41,5 +42,10 @@ class FeatureTest extends TestCase
         });
 
         return $user;
+    }
+
+    protected function configureDefaultCurrency(): void
+    {
+        config()->set('app.default_currency', 'USD');
     }
 }
