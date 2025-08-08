@@ -3,10 +3,11 @@
 namespace App\Providers;
 
 use App\Services\PaymentProviders\LemonSqueezy\LemonSqueezyProvider;
+use App\Services\PaymentProviders\Offline\OfflineProvider;
 use App\Services\PaymentProviders\Paddle\PaddleProvider;
-use App\Services\PaymentProviders\PaymentManager;
+use App\Services\PaymentProviders\PaymentService;
 use App\Services\PaymentProviders\Stripe\StripeProvider;
-use App\Services\UserVerificationManager;
+use App\Services\UserVerificationService;
 use App\Services\VerificationProviders\TwilioProvider;
 use Filament\Support\Assets\Js;
 use Filament\Support\Facades\FilamentAsset;
@@ -29,10 +30,11 @@ class AppServiceProvider extends ServiceProvider
             StripeProvider::class,
             PaddleProvider::class,
             LemonSqueezyProvider::class,
+            OfflineProvider::class,
         ], 'payment-providers');
 
-        $this->app->bind(PaymentManager::class, function () {
-            return new PaymentManager(...$this->app->tagged('payment-providers'));
+        $this->app->bind(PaymentService::class, function () {
+            return new PaymentService(...$this->app->tagged('payment-providers'));
         });
 
         // verification providers
@@ -40,8 +42,8 @@ class AppServiceProvider extends ServiceProvider
             TwilioProvider::class,
         ], 'verification-providers');
 
-        $this->app->afterResolving(UserVerificationManager::class, function (UserVerificationManager $manager) {
-            $manager->setVerificationProviders(...$this->app->tagged('verification-providers'));
+        $this->app->afterResolving(UserVerificationService::class, function (UserVerificationService $service) {
+            $service->setVerificationProviders(...$this->app->tagged('verification-providers'));
         });
     }
 

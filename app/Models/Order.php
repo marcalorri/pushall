@@ -21,6 +21,8 @@ class Order extends Model
         'total_discount_amount',
         'payment_provider_order_id',
         'payment_provider_id',
+        'is_local',
+        'comments',
     ];
 
     public function user(): BelongsTo

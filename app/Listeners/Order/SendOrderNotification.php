@@ -3,9 +3,10 @@
 namespace App\Listeners\Order;
 
 use App\Events\Order\Ordered;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Mail;
 
-class SendOrderNotification
+class SendOrderNotification implements ShouldQueue
 {
     /**
      * Create the event listener.

@@ -2,12 +2,19 @@
 
 namespace App\Filament\Admin\Resources\SubscriptionResource\Pages;
 
+use App\Constants\SubscriptionStatus;
 use App\Filament\Admin\Resources\SubscriptionResource;
 use App\Models\Subscription;
-use App\Services\PaymentProviders\PaymentManager;
-use App\Services\PlanManager;
-use App\Services\SubscriptionDiscountManager;
-use App\Services\SubscriptionManager;
+use App\Services\PaymentProviders\PaymentService;
+use App\Services\PlanService;
+use App\Services\SubscriptionDiscountService;
+use App\Services\SubscriptionService;
+use Closure;
+use Filament\Actions\Action;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\RichEditor;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 
@@ -19,25 +26,25 @@ class ViewSubscription extends ViewRecord
     {
         return [
             \Filament\Actions\ActionGroup::make([
-                \Filament\Actions\Action::make('change-plan')
+                Action::make('change-plan')
                     ->label(__('Change Plan'))
                     ->color('primary')
                     ->icon('heroicon-o-rocket-launch')
-                    ->visible(function (Subscription $record, SubscriptionManager $subscriptionManager): bool {
-                        return $subscriptionManager->canChangeSubscriptionPlan($record);
+                    ->visible(function (Subscription $record, SubscriptionService $subscriptionService): bool {
+                        return $subscriptionService->canChangeSubscriptionPlan($record);
                     })
                     ->form([
-                        \Filament\Forms\Components\Select::make('plan_id')
+                        Select::make('plan_id')
                             ->label(__('Plan'))
                             ->default($this->getRecord()->plan_id)
-                            ->options(function (PlanManager $planManager) {
-                                return $planManager->getAllActivePlans()->mapWithKeys(function ($plan) {
+                            ->options(function (PlanService $planService) {
+                                return $planService->getAllActivePlans()->mapWithKeys(function ($plan) {
                                     return [$plan->id => $plan->name];
                                 });
                             })
                             ->required()
                             ->helperText(__('Important: Plan change will happen immediately and depending on proration setting you set, user might be billed immediately full plan price or a proration is applied.')),
-                    ])->action(function (array $data, SubscriptionManager $subscriptionManager, PlanManager $planManager, PaymentManager $paymentManager) {
+                    ])->action(function (array $data, SubscriptionService $subscriptionService, PlanService $planService, PaymentService $paymentService) {
                         $userSubscription = $this->getRecord();
 
                         $paymentProvider = $userSubscription->paymentProvider()->first();
@@ -51,15 +58,15 @@ class ViewSubscription extends ViewRecord
                             return;
                         }
 
-                        $newPlanSlug = $planManager->getActivePlanById($data['plan_id'])->slug;
+                        $newPlanSlug = $planService->getActivePlanById($data['plan_id'])->slug;
 
-                        $paymentProviderStrategy = $paymentManager->getPaymentProviderBySlug(
+                        $paymentProviderStrategy = $paymentService->getPaymentProviderBySlug(
                             $paymentProvider->slug
                         );
 
                         $isProrated = config('app.payment.proration_enabled', true);
 
-                        $result = $subscriptionManager->changePlan($userSubscription, $paymentProviderStrategy, $newPlanSlug, $isProrated);
+                        $result = $subscriptionService->changePlan($userSubscription, $paymentProviderStrategy, $newPlanSlug, $isProrated);
 
                         if ($result) {
                             Notification::make()
@@ -73,23 +80,23 @@ class ViewSubscription extends ViewRecord
                                 ->send();
                         }
                     }),
-                \Filament\Actions\Action::make('add-discount')
+                Action::make('add-discount')
                     ->label(__('Add Discount'))
                     ->color('gray')
                     ->icon('heroicon-s-tag')
-                    ->visible(function (Subscription $record, SubscriptionManager $subscriptionManager): bool {
-                        return $subscriptionManager->canAddDiscount($record);
+                    ->visible(function (Subscription $record, SubscriptionService $subscriptionService): bool {
+                        return $subscriptionService->canAddDiscount($record);
                     })
                     ->form([
                         \Filament\Forms\Components\TextInput::make('code')
                             ->label(__('Discount code'))
                             ->required(),
                     ])
-                    ->action(function (array $data, Subscription $subscription, SubscriptionDiscountManager $subscriptionDiscountManager) {
+                    ->action(function (array $data, Subscription $subscription, SubscriptionDiscountService $subscriptionDiscountService) {
                         $code = $data['code'];
                         $user = $subscription->user()->first();
 
-                        $result = $subscriptionDiscountManager->applyDiscount($subscription, $code, $user);
+                        $result = $subscriptionDiscountService->applyDiscount($subscription, $code, $user);
 
                         if (! $result) {
 
@@ -105,19 +112,19 @@ class ViewSubscription extends ViewRecord
                             ->title(__('Discount code has been applied.'))
                             ->send();
                     }),
-                \Filament\Actions\Action::make('cancel')
+                Action::make('cancel')
                     ->color('gray')
                     ->label(__('Cancel Subscription'))
                     ->requiresConfirmation()
                     ->icon('heroicon-m-x-circle')
-                    ->action(function (Subscription $userSubscription, SubscriptionManager $subscriptionManager, PaymentManager $paymentManager) {
+                    ->action(function (Subscription $userSubscription, SubscriptionService $subscriptionService, PaymentService $paymentService) {
                         $paymentProvider = $userSubscription->paymentProvider()->first();
 
-                        $paymentProviderStrategy = $paymentManager->getPaymentProviderBySlug(
+                        $paymentProviderStrategy = $paymentService->getPaymentProviderBySlug(
                             $paymentProvider->slug
                         );
 
-                        $result = $subscriptionManager->cancelSubscription(
+                        $result = $subscriptionService->cancelSubscription(
                             $userSubscription,
                             $paymentProviderStrategy,
                             __('Cancelled by admin.')
@@ -135,21 +142,21 @@ class ViewSubscription extends ViewRecord
                                 ->send();
                         }
                     })
-                    ->visible(fn (Subscription $record, SubscriptionManager $subscriptionManager): bool => $subscriptionManager->canCancelSubscription($record)),
-                \Filament\Actions\Action::make('discard-cancellation')
+                    ->visible(fn (Subscription $record, SubscriptionService $subscriptionService): bool => $subscriptionService->canCancelSubscription($record)),
+                Action::make('discard-cancellation')
                     ->color('gray')
                     ->label(__('Discard Cancellation'))
                     ->icon('heroicon-m-x-circle')
                     ->requiresConfirmation()
-                    ->action(function (Subscription $userSubscription, SubscriptionManager $subscriptionManager, PaymentManager $paymentManager) {
+                    ->action(function (Subscription $userSubscription, SubscriptionService $subscriptionService, PaymentService $paymentService) {
 
                         $paymentProvider = $userSubscription->paymentProvider()->first();
 
-                        $paymentProviderStrategy = $paymentManager->getPaymentProviderBySlug(
+                        $paymentProviderStrategy = $paymentService->getPaymentProviderBySlug(
                             $paymentProvider->slug
                         );
 
-                        $result = $subscriptionManager->discardSubscriptionCancellation($userSubscription, $paymentProviderStrategy);
+                        $result = $subscriptionService->discardSubscriptionCancellation($userSubscription, $paymentProviderStrategy);
 
                         if ($result) {
                             Notification::make()
@@ -162,15 +169,66 @@ class ViewSubscription extends ViewRecord
                                 ->danger()
                                 ->send();
                         }
-                    })->visible(fn (Subscription $record, SubscriptionManager $subscriptionManager): bool => $subscriptionManager->canDiscardSubscriptionCancellation($record)),
+                    })->visible(fn (Subscription $record, SubscriptionService $subscriptionService): bool => $subscriptionService->canDiscardSubscriptionCancellation($record)),
             ])->button()->icon('heroicon-s-cog')->label(__('Manage Subscription')),
-            \Filament\Actions\Action::make('end_now')
+            Action::make('update_subscription')
+                ->color('gray')
+                ->label(__('Update Subscription'))
+                ->icon('heroicon-m-pencil')
+                ->form([
+                    DateTimePicker::make('ends_at')
+                        ->label(__('Subscription End Date'))
+                        ->default($this->getRecord()->ends_at)
+                        ->helperText(__('Make sure to set the date in the future.'))
+                        ->rule(
+                            fn (Get $get): Closure => function (string $attribute, $value, Closure $fail) use ($get) {
+                                if ($get('status') === SubscriptionStatus::ACTIVE->value && $get('ends_at') < now()) {
+                                    $fail(__('The end date must be in the future when the status is active.'));
+                                }
+                            })
+                        ->required(),
+                    Select::make('status')
+                        ->label(__('Subscription Status'))
+                        ->default($this->getRecord()->status)
+                        ->options([
+                            SubscriptionStatus::ACTIVE->value => __('Active'),
+                            SubscriptionStatus::INACTIVE->value => __('Inactive'),
+                            SubscriptionStatus::CANCELED->value => __('Canceled'),
+                            SubscriptionStatus::PAUSED->value => __('Paused'),
+                        ])
+                        ->required(),
+                    RichEditor::make('comments')
+                        ->label(__('Comments'))
+                        ->default($this->getRecord()->comments)
+                        ->helperText(__('Optional comments about the subscription.')),
+                ])
+                ->action(function (Subscription $subscription, SubscriptionService $subscriptionService, array $data) {
+                    if (! $subscriptionService->canUpdateSubscription($subscription)) {
+                        Notification::make()
+                            ->title(__('You cannot update this subscription.'))
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+
+                    if ($subscription->plan->has_trial) {
+                        $data['trial_ends_at'] = $data['ends_at'];
+                    }
+
+                    $subscriptionService->updateSubscription(
+                        $subscription,
+                        $data,
+                    );
+                })
+                ->visible(fn (Subscription $record, SubscriptionService $subscriptionService): bool => $subscriptionService->canUpdateSubscription($record)),
+            Action::make('end_now')
                 ->color('danger')
                 ->label(__('End Subscription Now'))
                 ->requiresConfirmation()
                 ->icon('heroicon-m-x-circle')
-                ->action(function (Subscription $userSubscription, SubscriptionManager $subscriptionManager) {
-                    $result = $subscriptionManager->endSubscription(
+                ->action(function (Subscription $userSubscription, SubscriptionService $subscriptionService) {
+                    $result = $subscriptionService->endSubscription(
                         $userSubscription,
                     );
 
@@ -186,7 +244,7 @@ class ViewSubscription extends ViewRecord
                             ->send();
                     }
                 })
-                ->visible(fn (Subscription $record, SubscriptionManager $subscriptionManager): bool => $subscriptionManager->canEndSubscription($record)),
+                ->visible(fn (Subscription $record, SubscriptionService $subscriptionService): bool => $subscriptionService->canEndSubscription($record)),
         ];
     }
 }

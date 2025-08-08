@@ -19,9 +19,10 @@
                         </span>
                         @if ($paymentProvider->isRedirectProvider())
                             <span class="">{{ __('You will be redirected to complete your payment.') }}</span>
-                        @endif
-                        @if ($paymentProvider->isOverlayProvider())
+                        @elseif ($paymentProvider->isOverlayProvider())
                             <span class="">{{ __('You will be asked to enter your payment details in a secure overlay.') }}</span>
+                        @else
+                            <span class="">{{ __('You will get an email with payment instructions.') }}</span>
                         @endif
                     </span>
                     <input type="radio"

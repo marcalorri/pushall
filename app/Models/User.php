@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use App\Notifications\Auth\QueuedVerifyEmail;
-use App\Services\OrderManager;
-use App\Services\SubscriptionManager;
+use App\Services\OrderService;
+use App\Services\SubscriptionService;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -37,6 +37,7 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail, Two
         'notes',
         'phone_number',
         'phone_number_verified_at',
+        'last_seen_at',
     ];
 
     /**
@@ -58,6 +59,7 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail, Two
         'email_verified_at' => 'datetime',
         'phone_number_verified_at' => 'datetime',
         'password' => 'hashed',
+        'last_seen_at' => 'datetime',
     ];
 
     public function roadmapItems()
@@ -136,34 +138,34 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail, Two
 
     public function isSubscribed(?string $productSlug = null): bool
     {
-        /** @var SubscriptionManager $subscriptionManager */
-        $subscriptionManager = app(SubscriptionManager::class);
+        /** @var SubscriptionService $subscriptionService */
+        $subscriptionService = app(SubscriptionService::class);
 
-        return $subscriptionManager->isUserSubscribed($this, $productSlug);
+        return $subscriptionService->isUserSubscribed($this, $productSlug);
     }
 
     public function isTrialing(?string $productSlug = null): bool
     {
-        /** @var SubscriptionManager $subscriptionManager */
-        $subscriptionManager = app(SubscriptionManager::class);
+        /** @var SubscriptionService $subscriptionService */
+        $subscriptionService = app(SubscriptionService::class);
 
-        return $subscriptionManager->isUserTrialing($this, $productSlug);
+        return $subscriptionService->isUserTrialing($this, $productSlug);
     }
 
     public function hasPurchased(?string $productSlug = null): bool
     {
-        /** @var OrderManager $orderManager */
-        $orderManager = app(OrderManager::class);
+        /** @var OrderService $orderService */
+        $orderService = app(OrderService::class);
 
-        return $orderManager->hasUserOrdered($this, $productSlug);
+        return $orderService->hasUserOrdered($this, $productSlug);
     }
 
     public function subscriptionProductMetadata()
     {
-        /** @var SubscriptionManager $subscriptionManager */
-        $subscriptionManager = app(SubscriptionManager::class);
+        /** @var SubscriptionService $subscriptionService */
+        $subscriptionService = app(SubscriptionService::class);
 
-        return $subscriptionManager->getUserSubscriptionProductMetadata($this);
+        return $subscriptionService->getUserSubscriptionProductMetadata($this);
 
     }
 

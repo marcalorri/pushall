@@ -8,9 +8,9 @@ use App\Filament\Dashboard\Resources\SubscriptionResource\Pages\ViewSubscription
 use App\Filament\Dashboard\Resources\TransactionResource\Pages;
 use App\Mapper\TransactionStatusMapper;
 use App\Models\Transaction;
-use App\Services\AddressManager;
-use App\Services\ConfigManager;
-use App\Services\InvoiceManager;
+use App\Services\AddressService;
+use App\Services\ConfigService;
+use App\Services\InvoiceService;
 use Filament\Actions\Action;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -36,10 +36,13 @@ class TransactionResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('amount')->formatStateUsing(function (string $state, $record) {
-                    return money($state, $record->currency->code);
-                }),
+                Tables\Columns\TextColumn::make('amount')
+                    ->label(__('Amount'))
+                    ->formatStateUsing(function (string $state, $record) {
+                        return money($state, $record->currency->code);
+                    }),
                 Tables\Columns\TextColumn::make('status')
+                    ->label(__('Status'))
                     ->color(fn (Transaction $record, TransactionStatusMapper $mapper): string => $mapper->mapColor($record->status))
                     ->badge()
                     ->formatStateUsing(fn (string $state, TransactionStatusMapper $mapper): string => $mapper->mapForDisplay($state)),
@@ -67,9 +70,9 @@ class TransactionResource extends Resource
                 Tables\Actions\Action::make('see-invoice')
                     ->label(__('See Invoice'))
                     ->icon('heroicon-o-document')
-                    ->visible(fn (Transaction $record, InvoiceManager $invoiceManager): bool => $invoiceManager->canGenerateInvoices($record))
-                    ->modalDescription(function (AddressManager $addressManager) {
-                        if (! $addressManager->userHasAddressInfo(auth()->user())) {
+                    ->visible(fn (Transaction $record, InvoiceService $invoiceService): bool => $invoiceService->canGenerateInvoices($record))
+                    ->modalDescription(function (AddressService $addressService) {
+                        if (! $addressService->userHasAddressInfo(auth()->user())) {
                             return __('Your address information is not complete. It is recommended to complete your address information before generating an invoice. Are you sure you want to proceed?');
                         }
 
@@ -154,6 +157,6 @@ class TransactionResource extends Resource
 
     public static function isDiscovered(): bool
     {
-        return app()->make(ConfigManager::class)->get('app.customer_dashboard.show_transactions', true);
+        return app()->make(ConfigService::class)->get('app.customer_dashboard.show_transactions', true);
     }
 }

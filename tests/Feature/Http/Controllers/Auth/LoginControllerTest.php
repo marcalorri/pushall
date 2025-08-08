@@ -42,7 +42,7 @@ class LoginControllerTest extends FeatureTest
             'password' => 'password123',
         ]);
 
-        $response->assertRedirect('/');
+        $response->assertRedirect(route('filament.dashboard.pages.dashboard'));
     }
 
     public function test_2fa_verification_is_shown_when_user_has_2fa_enabled()
@@ -88,6 +88,6 @@ class LoginControllerTest extends FeatureTest
             'password' => 'password123',
         ]);
 
-        $response->assertRedirect('/');
+        $response->assertRedirect(route('filament.dashboard.pages.dashboard'));
     }
 }

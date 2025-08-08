@@ -19,9 +19,12 @@ class RoadmapItemResource extends Resource
 {
     protected static ?string $model = RoadmapItem::class;
 
-    protected static ?string $navigationGroup = 'Roadmap';
-
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+
+    public static function getNavigationGroup(): ?string
+    {
+        return __('Roadmap');
+    }
 
     public static function form(Form $form): Form
     {
@@ -29,6 +32,7 @@ class RoadmapItemResource extends Resource
             ->schema([
                 Forms\Components\Section::make([
                     Forms\Components\TextInput::make('title')
+                        ->label(__('Title'))
                         ->required()
                         ->maxLength(255),
                     Forms\Components\TextInput::make('slug')
@@ -50,8 +54,10 @@ class RoadmapItemResource extends Resource
 
                     Forms\Components\Textarea::make('description')
                         ->rows(5)
+                        ->label(__('Description'))
                         ->columnSpanFull(),
                     Forms\Components\Select::make('status')
+                        ->label(__('Status'))
                         ->options(function () {
                             return collect(RoadmapItemStatus::cases())->mapWithKeys(function ($status) {
                                 return [$status->value => RoadmapMapper::mapStatusForDisplay($status)];
@@ -60,6 +66,7 @@ class RoadmapItemResource extends Resource
                         ->required()
                         ->default(RoadmapItemStatus::APPROVED->value),
                     Forms\Components\Select::make('type')
+                        ->label(__('Type'))
                         ->options(function () {
                             return collect(RoadmapItemType::cases())->mapWithKeys(function ($type) {
                                 return [$type->value => RoadmapMapper::mapTypeForDisplay($type)];
@@ -88,8 +95,10 @@ class RoadmapItemResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('title')
+                    ->label(__('Title'))
                     ->searchable(),
                 Tables\Columns\SelectColumn::make('status')
+                    ->label(__('Status'))
                     ->options(function () {
                         return collect(RoadmapItemStatus::cases())->mapWithKeys(function ($status) {
                             return [$status->value => RoadmapMapper::mapStatusForDisplay($status)];
@@ -98,6 +107,7 @@ class RoadmapItemResource extends Resource
                     ->rules(['required'])
                     ->searchable(),
                 Tables\Columns\SelectColumn::make('type')
+                    ->label(__('Type'))
                     ->options(function () {
                         return collect(RoadmapItemType::cases())->mapWithKeys(function ($type) {
                             return [$type->value => RoadmapMapper::mapTypeForDisplay($type)];
@@ -106,6 +116,7 @@ class RoadmapItemResource extends Resource
                     ->rules(['required'])
                     ->searchable(),
                 Tables\Columns\TextColumn::make('upvotes')
+                    ->label(__('Upvotes'))
                     ->default(1)
                     ->numeric()
                     ->sortable(),
@@ -113,6 +124,7 @@ class RoadmapItemResource extends Resource
                     ->label(__('User'))
                     ->sortable(),
                 Tables\Columns\TextColumn::make('updated_at')
+                    ->label(__('Updated At'))
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: false),

@@ -16,8 +16,8 @@ use App\Models\PlanPrice;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Models\UserSubscriptionTrial;
-use App\Services\PaymentProviders\PaymentManager;
 use App\Services\PaymentProviders\PaymentProviderInterface;
+use App\Services\PaymentProviders\PaymentService;
 use Exception;
 use Livewire\Livewire;
 use Tests\Feature\FeatureTest;
@@ -354,6 +354,95 @@ class SubscriptionCheckoutFormTest extends FeatureTest
         $this->assertEquals($subscriptionsBefore + 1, Subscription::count());
     }
 
+    public function test_can_checkout_offline_payment()
+    {
+        $planSlug = 'plan-slug-'.rand(1, 1000000);
+        $sessionDto = new SubscriptionCheckoutDto;
+        $sessionDto->planSlug = $planSlug;
+
+        $this->withSession([SessionConstants::SUBSCRIPTION_CHECKOUT_DTO => $sessionDto]);
+
+        $plan = Plan::factory()->create([
+            'slug' => $planSlug,
+            'is_active' => true,
+        ]);
+
+        PlanPrice::create([
+            'plan_id' => $plan->id,
+            'currency_id' => Currency::where('code', 'USD')->first()->id,
+            'price' => 100,
+        ]);
+
+        $paymentProvider = $this->addOfflinePaymentProvider();
+
+        $paymentProvider->shouldReceive('getSupportedPlanTypes')
+            ->andReturn([
+                PlanType::FLAT_RATE->value,
+            ]);
+
+        $paymentProvider->shouldReceive('initSubscriptionCheckout')
+            ->once()
+            ->andReturn([]);
+
+        // get number of subscriptions before checkout
+        $subscriptionsBefore = Subscription::count();
+
+        $email = 'something+'.rand(1, 1000000).'@gmail.com';
+
+        Livewire::test(SubscriptionCheckoutForm::class)
+            ->set('name', 'Name')
+            ->set('email', $email)
+            ->set('password', 'password')
+            ->set('paymentProvider', 'paymore-offline')
+            ->call('checkout')
+            ->assertRedirectToRoute('checkout.subscription.success');
+
+        // assert user has been created
+        $this->assertDatabaseHas('users', [
+            'email' => $email,
+        ]);
+
+        // assert user is logged in
+        $this->assertAuthenticated();
+
+        // assert order has been created
+        $this->assertEquals($subscriptionsBefore + 1, Subscription::count());
+    }
+
+    private function addOfflinePaymentProvider()
+    {
+        // find or create payment provider
+        PaymentProvider::updateOrCreate([
+            'slug' => 'paymore-offline',
+        ], [
+            'name' => 'Paymore Offline',
+            'is_active' => true,
+            'type' => 'any',
+        ]);
+
+        $mock = \Mockery::mock(PaymentProviderInterface::class);
+
+        $mock->shouldReceive('isRedirectProvider')
+            ->andReturn(false);
+
+        $mock->shouldReceive('getSlug')
+            ->andReturn('paymore-offline');
+
+        $mock->shouldReceive('getName')
+            ->andReturn('Paymore Offline');
+
+        $mock->shouldReceive('isOverlayProvider')
+            ->andReturn(false);
+
+        $this->app->instance(PaymentProviderInterface::class, $mock);
+
+        $this->app->bind(PaymentService::class, function () use ($mock) {
+            return new PaymentService($mock);
+        });
+
+        return $mock;
+    }
+
     private function addPaymentProvider(bool $isRedirect = true)
     {
         // find or create payment provider
@@ -386,8 +475,8 @@ class SubscriptionCheckoutFormTest extends FeatureTest
 
         $this->app->instance(PaymentProviderInterface::class, $mock);
 
-        $this->app->bind(PaymentManager::class, function () use ($mock) {
-            return new PaymentManager($mock);
+        $this->app->bind(PaymentService::class, function () use ($mock) {
+            return new PaymentService($mock);
         });
 
         return $mock;

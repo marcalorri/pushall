@@ -7,6 +7,7 @@ use App\Filament\Admin\Resources\UserResource\RelationManagers\SubscriptionsRela
 use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -18,9 +19,12 @@ class UserResource extends Resource
 {
     protected static ?string $model = User::class;
 
-    protected static ?string $navigationGroup = 'User Management';
-
     protected static ?int $navigationSort = 1;
+
+    public static function getNavigationGroup(): ?string
+    {
+        return __('User Management');
+    }
 
     public static function form(Form $form): Form
     {
@@ -28,19 +32,23 @@ class UserResource extends Resource
             ->schema([
                 Forms\Components\Section::make()->schema([
                     Forms\Components\TextInput::make('name')
+                        ->label(__('Name'))
                         ->required()
                         ->maxLength(255),
                     Forms\Components\TextInput::make('public_name')
                         ->required()
+                        ->label(__('Public Name'))
                         ->nullable()
                         ->helperText('This is the name that will be displayed publicly (for example in blog posts).')
                         ->maxLength(255),
                     Forms\Components\TextInput::make('email')
                         ->email()
+                        ->label(__('Email'))
                         ->required()
                         ->maxLength(255),
                     Forms\Components\TextInput::make('password')
                         ->password()
+                        ->label(__('Password'))
                         ->dehydrateStateUsing(fn ($state) => Hash::make($state))
                         ->dehydrated(fn ($state) => filled($state))
                         ->required(fn (string $context): bool => $context === 'create')
@@ -48,9 +56,11 @@ class UserResource extends Resource
                         ->maxLength(255),
                     Forms\Components\RichEditor::make('notes')
                         ->nullable()
+                        ->label(__('Notes'))
                         ->helperText('Any notes you want to keep about this user.'),
                     Forms\Components\Select::make('roles')
                         ->multiple()
+                        ->label(__('Roles'))
                         ->relationship('roles', 'name')
                         ->preload(),
                     Forms\Components\Checkbox::make('is_admin')
@@ -72,15 +82,25 @@ class UserResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('email')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('name')
+                    ->label(__('Name'))
+                    ->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('email')
+                    ->label(__('Email'))
+                    ->searchable()->sortable(),
                 Tables\Columns\IconColumn::make('email_verified_at')
                     ->label(__('Email Verified'))
                     ->getStateUsing(fn (User $user) => $user->email_verified_at ? true : false)
                     ->boolean(),
+                Tables\Columns\TextColumn::make('last_seen_at')
+                    ->label(__('Last Seen'))
+                    ->sortable()
+                    ->dateTime(config('app.datetime_format')),
                 Tables\Columns\TextColumn::make('updated_at')
+                    ->label(__('Updated At'))
                     ->dateTime(config('app.datetime_format')),
                 Tables\Columns\TextColumn::make('created_at')
+                    ->label(__('Created At'))
                     ->sortable()
                     ->dateTime(config('app.datetime_format')),
             ])
@@ -90,6 +110,19 @@ class UserResource extends Resource
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Impersonate::make()->redirectTo(route('home')),
+                Tables\Actions\Action::make('resend_verification_email')
+                    ->iconButton()
+                    ->label(__('Resend Verification Email'))
+                    ->icon('heroicon-s-envelope-open')
+                    ->requiresConfirmation()
+                    ->action(function (User $record) {
+                        $record->sendEmailVerificationNotification();
+
+                        Notification::make()
+                            ->success()
+                            ->body(__('A verification link has been queued to be sent to this user.'))
+                            ->send();
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\DeleteBulkAction::make(),

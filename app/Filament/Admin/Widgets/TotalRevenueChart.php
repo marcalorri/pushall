@@ -2,8 +2,8 @@
 
 namespace App\Filament\Admin\Widgets;
 
-use App\Models\Currency;
-use App\Services\MetricsManager;
+use App\Services\CurrencyService;
+use App\Services\MetricsService;
 use Filament\Support\RawJs;
 use Filament\Widgets\ChartWidget;
 use Filament\Widgets\Concerns\InteractsWithPageFilters;
@@ -28,9 +28,9 @@ class TotalRevenueChart extends ChartWidget
         $startDate = $startDate ? Carbon::parse($startDate) : null;
         $endDate = $endDate ? Carbon::parse($endDate) : null;
 
-        $metricsManager = resolve(MetricsManager::class);
+        $metricsService = resolve(MetricsService::class);
 
-        $data = $metricsManager->calculateDailyRevenueChart($period, $startDate, $endDate);
+        $data = $metricsService->calculateDailyRevenueChart($period, $startDate, $endDate);
 
         return [
 
@@ -62,8 +62,9 @@ class TotalRevenueChart extends ChartWidget
 
     protected function getOptions(): RawJs
     {
-        $currentCurrency = config('app.default_currency');
-        $currency = Currency::where('code', $currentCurrency)->first();
+        /** @var CurrencyService $currencyService */
+        $currencyService = resolve(CurrencyService::class);
+        $currency = $currencyService->getMetricsCurrency();
         $symbol = $currency->symbol;
 
         return RawJs::make(<<<JS

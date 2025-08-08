@@ -3,8 +3,8 @@
 namespace Database\Seeders;
 
 use App\Constants\PaymentProviderConstants;
+use App\Models\PaymentProvider;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 
 class PaymentProvidersSeeder extends Seeder
 {
@@ -13,29 +13,42 @@ class PaymentProvidersSeeder extends Seeder
      */
     public function run(): void
     {
-        DB::table('payment_providers')->upsert([
+        $providers = [
             [
                 'name' => 'Stripe',
                 'slug' => PaymentProviderConstants::STRIPE_SLUG,
                 'type' => 'multi',
-                'created_at' => now()->format('Y-m-d H:i:s'),
-                'updated_at' => now()->format('Y-m-d H:i:s'),
+                'is_active' => true,
+                'sort' => 1,
             ],
             [
                 'name' => 'Paddle',
                 'slug' => PaymentProviderConstants::PADDLE_SLUG,
                 'type' => 'multi',
-                'created_at' => now()->format('Y-m-d H:i:s'),
-                'updated_at' => now()->format('Y-m-d H:i:s'),
+                'is_active' => true,
+                'sort' => 2,
             ],
             [
                 'name' => 'Lemon Squeezy',
                 'slug' => PaymentProviderConstants::LEMON_SQUEEZY_SLUG,
                 'type' => 'multi',
-                'created_at' => now()->format('Y-m-d H:i:s'),
-                'updated_at' => now()->format('Y-m-d H:i:s'),
+                'is_active' => true,
+                'sort' => 3,
             ],
-        ], ['slug']);
+            [
+                'name' => 'Offline',
+                'slug' => PaymentProviderConstants::OFFLINE_SLUG,
+                'type' => 'multi',
+                'is_active' => false,
+                'sort' => 4,
+            ],
+        ];
 
+        foreach ($providers as $provider) {
+            PaymentProvider::query()->firstOrCreate(
+                ['slug' => $provider['slug']],
+                $provider
+            );
+        }
     }
 }

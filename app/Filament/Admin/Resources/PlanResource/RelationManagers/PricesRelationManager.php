@@ -7,6 +7,7 @@ use App\Constants\PlanPriceType;
 use App\Constants\PlanType;
 use App\Mapper\PlanPriceMapper;
 use App\Models\Currency;
+use App\Services\CurrencyService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -21,15 +22,23 @@ class PricesRelationManager extends RelationManager
 
     protected static ?string $recordTitleAttribute = 'id';
 
+    private CurrencyService $currencyService;
+
+    public function boot(CurrencyService $currencyService)
+    {
+        $this->currencyService = $currencyService;
+    }
+
     public function form(Form $form): Form
     {
-        $defaultCurrency = Currency::where('code', config('app.default_currency'))->first()->id;
+        $defaultCurrency = $this->currencyService->getCurrency()->id;
 
         return $form
             ->schema([
                 Forms\Components\Section::make([
                     Forms\Components\Radio::make('type')
                         ->helperText(__('Pick the price type for this plan.'))
+                        ->label(__('Type'))
                         ->options(function () {
                             return PlanPriceMapper::getPlanPriceTypes($this->ownerRecord->type);
                         })
@@ -43,7 +52,7 @@ class PricesRelationManager extends RelationManager
                         ->label('Currency')
                         ->live()
                         ->options(
-                            \App\Models\Currency::all()->sortBy('name')
+                            $this->currencyService->getAllCurrencies()
                                 ->mapWithKeys(function ($currency) {
                                     return [$currency->id => $currency->name.' ('.$currency->symbol.')'];
                                 })
@@ -82,12 +91,14 @@ class PricesRelationManager extends RelationManager
                         ->required()
                         ->type('number')
                         ->gte(0)
+                        ->label(__('Price per unit'))
                         ->visible(function ($get) {
                             return $get('type') === PlanPriceType::USAGE_BASED_PER_UNIT->value;
                         })
                         ->helperText(__('Enter price per unit in lowest denomination for a currency (cents). E.g. 1000 = $10.00')),
                     Forms\Components\Repeater::make('tiers')
                         ->helperText(__('Enter tier prices in lowest denomination for a currency (cents). E.g. 1000 = $10.00'))
+                        ->label(__('Tiers'))
                         ->schema([
                             Forms\Components\TextInput::make('until_unit')->label(__('Up until (x) units'))->required()
                                 ->suffixAction(\Filament\Forms\Components\Actions\Action::make('infinity')->icon('icon-infinity')->action(function (Forms\Get $get, Forms\Set $set) {
@@ -162,6 +173,7 @@ class PricesRelationManager extends RelationManager
                             ->integer()
                             ->label(__('Unit Quantity'))
                             ->helperText(__('Enter an example unit quantity to see how the price is calculated.'))
+                            ->dehydrated(false)
                             ->live(),
                         Forms\Components\Placeholder::make('price_preview')
                             ->label(__('Price Preview Calculation'))
@@ -186,12 +198,13 @@ class PricesRelationManager extends RelationManager
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('price')
+                    ->label(__('Price'))
                     // divide by 100 to get price in dollars
                     ->formatStateUsing(function (string $state, $record) {
                         return money($state, $record->currency->code);
                     }),
                 Tables\Columns\TextColumn::make('currency.name')
-                    ->label('Currency'),
+                    ->label(__('Currency')),
             ])
             ->filters([
                 //
