@@ -7,6 +7,8 @@ use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Spatie\Permission\Models\Role;
+use App\Models\WalletPass;
+use App\Policies\WalletPassPolicy;
 
 class AuthServiceProvider extends ServiceProvider
 {
@@ -17,6 +19,7 @@ class AuthServiceProvider extends ServiceProvider
      */
     protected $policies = [
         Role::class => \App\Policies\RolePolicy::class,
+        WalletPass::class => WalletPassPolicy::class,
     ];
 
     /**

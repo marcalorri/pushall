@@ -4,6 +4,8 @@ use App\Http\Controllers\Auth\OAuthController;
 use App\Http\Controllers\BlogController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\PaymentProviders\PaddleController;
+use App\Http\Controllers\Wallet\ApplePassController;
+use App\Http\Controllers\Wallet\PassPublicController;
 use App\Http\Controllers\RoadmapController;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Support\Facades\Auth;
@@ -172,3 +174,17 @@ Route::controller(InvoiceController::class)
         Route::get('/generate/{transactionUuid}', 'generate')->name('invoice.generate');
         Route::get('/preview', 'preview')->name('invoice.preview');
     });
+
+// Public pass links (smart landing and platform-specific)
+Route::prefix('p/{pass}')->group(function () {
+    Route::get('/', [PassPublicController::class, 'smart'])->name('public.pass.smart');
+    Route::get('/choose', [PassPublicController::class, 'choose'])->name('public.pass.choose');
+    Route::get('/apple', [PassPublicController::class, 'apple'])->name('public.pass.apple');
+    Route::get('/google', [PassPublicController::class, 'google'])->name('public.pass.google');
+});
+
+// Wallet: Apple download (dashboard)
+Route::middleware('auth')->group(function () {
+    Route::get('/wallet/apple/{walletPass}/download', [ApplePassController::class, 'download'])
+        ->name('wallet.apple.download');
+});
